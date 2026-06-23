@@ -1,0 +1,62 @@
+.line-style-picker {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 10;
+  padding: 12px;
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  user-select: none;
+}
+
+.line-style-picker-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 10px;
+}
+
+.line-style-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.line-style-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fafafa;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.line-style-option:hover {
+  border-color: #c4b5fd;
+  background: #f5f3ff;
+}
+
+.line-style-option.active {
+  border-color: #8b5cf6;
+  background: #ede9fe;
+}
+
+.line-style-preview {
+  flex-shrink: 0;
+  display: block;
+}
+
+.line-style-name {
+  font-size: 13px;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.line-style-option.active .line-style-name {
+  color: #6d28d9;
+  font-weight: 500;
+}
