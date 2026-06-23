@@ -9,7 +9,6 @@ const FONT_FAMILY =
 const TEXT_COLOR = '#1f2937';
 
 export interface DrawOptions {
-  showAddButtonOn?: string;
   lineStyle?: LineStyleId;
 }
 
@@ -124,33 +123,7 @@ function drawTextNode(ctx: CanvasRenderingContext2D, node: LayoutNode): void {
   ctx.fillText(text, x, y + height / 2);
 }
 
-function drawAddButton(
-  ctx: CanvasRenderingContext2D,
-  node: LayoutNode,
-): void {
-  const cx = node.x + node.width / 2;
-  const cy = node.y - 18;
-
-  ctx.beginPath();
-  ctx.arc(cx, cy, 10, 0, Math.PI * 2);
-  ctx.fillStyle = '#ffffff';
-  ctx.fill();
-  ctx.strokeStyle = '#d1d5db';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
-  ctx.fillStyle = '#6b7280';
-  ctx.font = `12px ${FONT_FAMILY}`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('⊕', cx, cy + 1);
-}
-
-function drawNodes(
-  ctx: CanvasRenderingContext2D,
-  layout: MindMapLayout,
-  options: DrawOptions,
-): void {
+function drawNodes(ctx: CanvasRenderingContext2D, layout: MindMapLayout): void {
   for (const node of layout.nodes) {
     if (node.type === 'root') {
       drawRootNode(ctx, node);
@@ -170,9 +143,6 @@ function drawNodes(
       });
     } else {
       drawTextNode(ctx, node);
-      if (options.showAddButtonOn === node.id) {
-        drawAddButton(ctx, node);
-      }
     }
   }
 }
@@ -186,5 +156,5 @@ export function drawMindMap(
   const lineStyle = options.lineStyle ?? 'curve';
   drawEdges(ctx, layout, lineStyle);
   drawSummaries(ctx, layout, lineStyle);
-  drawNodes(ctx, layout, options);
+  drawNodes(ctx, layout);
 }

@@ -42,7 +42,7 @@ export function MindMap({ data, lineStyle, onLineStyleChange }: MindMapProps) {
     ctx.save();
     ctx.translate(offset.x, offset.y);
     ctx.scale(scale, scale);
-    drawMindMap(ctx, layout, { showAddButtonOn: 'branch-1', lineStyle });
+    drawMindMap(ctx, layout, { lineStyle });
     ctx.restore();
   }, [layout, offset, scale, lineStyle]);
 
