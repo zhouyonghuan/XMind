@@ -7,7 +7,7 @@ export const sampleMindMap: MindMapNode = {
   children: [
     {
       id: 'branch-1',
-      text: '分支主题',
+      text: '分支主题1',
       type: 'branch',
       children: [
         { id: 'sub-1-1', text: '子主题', type: 'sub' },
@@ -22,7 +22,7 @@ export const sampleMindMap: MindMapNode = {
     },
     {
       id: 'branch-2',
-      text: '分支主题',
+      text: '分支主题2',
       type: 'branch',
       children: [
         { id: 'sub-2-1', text: '子主题', type: 'sub' },
@@ -31,7 +31,7 @@ export const sampleMindMap: MindMapNode = {
     },
     {
       id: 'branch-3',
-      text: '分支主题',
+      text: '分支主题3',
       type: 'branch',
       children: [
         { id: 'sub-3-1', text: '子主题', type: 'sub' },
@@ -40,7 +40,7 @@ export const sampleMindMap: MindMapNode = {
     },
     {
       id: 'branch-4',
-      text: '分支主题',
+      text: '分支主题4',
       type: 'branch',
       children: [
         { id: 'sub-4-1', text: '子主题', type: 'sub' },

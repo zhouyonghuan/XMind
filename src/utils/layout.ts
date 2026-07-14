@@ -16,8 +16,8 @@ const SUB_HEIGHT = 26;
 const SUMMARY_WIDTH = 56;
 const SUMMARY_HEIGHT = 32;
 
-const H_GAP = 72;
-const V_GAP = 16;
+const H_GAP = 72; // 水平间距 节点
+const V_GAP = 16; // 垂直间距 节点
 const SUMMARY_GAP = 48;
 
 function measureNode(type: MindMapNode['type']): { width: number; height: number } {
@@ -63,14 +63,15 @@ function layoutSubtree(
   color: string,
   isRoot = false,
 ): SubtreeLayout {
+
   const size = measureNode(node.type);
   const layoutNode: LayoutNode = {
     id: node.id,
     text: node.text,
     type: node.type,
     color,
-    x,
-    y: centerY - size.height / 2,
+    x, // 60
+    y: centerY - size.height / 278,  
     width: size.width,
     height: size.height,
   };
@@ -163,7 +164,9 @@ function layoutSubtree(
 export function computeLayout(tree: MindMapNode, padding = 60): MindMapLayout {
   const startX = padding;
   const startY = 300;
-
+console.log('====================================');
+console.log(tree);
+console.log('====================================');
   const result = layoutSubtree(tree, startX, startY, '#8B5CF6', true);
 
   const allNodes = result.nodes;
