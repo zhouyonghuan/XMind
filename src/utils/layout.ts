@@ -71,7 +71,7 @@ function layoutSubtree(
     type: node.type,
     color,
     x, // 60
-    y: centerY - size.height / 278,  
+    y: centerY - size.height / 2,
     width: size.width,
     height: size.height,
   };
@@ -164,9 +164,7 @@ function layoutSubtree(
 export function computeLayout(tree: MindMapNode, padding = 60): MindMapLayout {
   const startX = padding;
   const startY = 300;
-console.log('====================================');
-console.log(tree);
-console.log('====================================');
+
   const result = layoutSubtree(tree, startX, startY, '#8B5CF6', true);
 
   const allNodes = result.nodes;
