@@ -10,6 +10,11 @@ const TEXT_COLOR = '#1f2937';
 
 export interface DrawOptions {
   lineStyle?: LineStyleId;
+  selectedIds?: string[];
+  selectedSummaryParentId?: string | null;
+  /** 正在编辑时隐藏画布上的对应文字，避免与输入框重叠 */
+  editingNodeId?: string | null;
+  editingSummaryParentId?: string | null;
 }
 
 function drawRoundRect(
@@ -70,25 +75,24 @@ function drawSummaryBox(
   ctx.fillText(text, x + width / 2, y + height / 2);
 }
 
-function drawSummaries(
+function drawSelectionHighlight(
   ctx: CanvasRenderingContext2D,
-  layout: MindMapLayout,
-  lineStyle: LineStyleId,
+  node: LayoutNode,
 ): void {
-  ctx.lineCap = 'round';
-  ctx.lineWidth = 2;
-
-  for (const summary of layout.summaries) {
-    ctx.strokeStyle = summary.color;
-    drawCurlyBracket(ctx, summary.bracketX, summary.bracketTop, summary.bracketBottom);
-
-    const summaryCenterY = summary.y + summary.height / 2;
-    const lineStartX = summary.bracketX + 14;
-    const lineEndX = summary.x;
-    drawConnectionLine(ctx, lineStartX, summaryCenterY, lineEndX, summaryCenterY, lineStyle);
-
-    drawSummaryBox(ctx, summary);
-  }
+  const pad = node.type === 'root' ? 4 : 6;
+  drawRoundRect(
+    ctx,
+    node.x - pad,
+    node.y - pad,
+    node.width + pad * 2,
+    node.height + pad * 2,
+    node.type === 'root' ? node.height / 2 + 2 : 6,
+  );
+  ctx.fillStyle = 'rgba(139, 92, 246, 0.12)';
+  ctx.fill();
+  ctx.strokeStyle = '#8b5cf6';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
 }
 
 function drawRootNode(ctx: CanvasRenderingContext2D, node: LayoutNode): void {
@@ -123,15 +127,33 @@ function drawTextNode(ctx: CanvasRenderingContext2D, node: LayoutNode): void {
   ctx.fillText(text, x, y + height / 2);
 }
 
-function drawNodes(ctx: CanvasRenderingContext2D, layout: MindMapLayout): void {
+function drawNodes(
+  ctx: CanvasRenderingContext2D,
+  layout: MindMapLayout,
+  selectedIds: string[] = [],
+  editingNodeId?: string | null,
+): void {
+  const selected = new Set(selectedIds);
+
   for (const node of layout.nodes) {
+    if (selected.has(node.id)) {
+      drawSelectionHighlight(ctx, node);
+    }
+
+    const hideText = editingNodeId === node.id;
+
     if (node.type === 'root') {
-      drawRootNode(ctx, node);
+      if (hideText) {
+        drawRootNodeShell(ctx, node);
+      } else {
+        drawRootNode(ctx, node);
+      }
     } else if (node.type === 'summary') {
       drawSummaryBox(ctx, {
         id: node.id,
         text: node.text,
         color: node.color,
+        parentId: '',
         childIds: [],
         x: node.x,
         y: node.y,
@@ -141,8 +163,69 @@ function drawNodes(ctx: CanvasRenderingContext2D, layout: MindMapLayout): void {
         bracketTop: 0,
         bracketBottom: 0,
       });
-    } else {
+    } else if (!hideText) {
       drawTextNode(ctx, node);
+    }
+  }
+}
+
+function drawRootNodeShell(ctx: CanvasRenderingContext2D, node: LayoutNode): void {
+  const { x, y, width, height, color } = node;
+  const radius = height / 2;
+  drawRoundRect(ctx, x, y, width, height, radius);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+}
+
+function drawSummaries(
+  ctx: CanvasRenderingContext2D,
+  layout: MindMapLayout,
+  lineStyle: LineStyleId,
+  selectedSummaryParentId?: string | null,
+  editingSummaryParentId?: string | null,
+): void {
+  ctx.lineCap = 'round';
+  ctx.lineWidth = 2;
+
+  for (const summary of layout.summaries) {
+    const isSelected = selectedSummaryParentId === summary.parentId;
+    ctx.strokeStyle = summary.color;
+    ctx.lineWidth = isSelected ? 3 : 2;
+    drawCurlyBracket(ctx, summary.bracketX, summary.bracketTop, summary.bracketBottom);
+
+    const summaryCenterY = summary.y + summary.height / 2;
+    const lineStartX = summary.bracketX + 14;
+    const lineEndX = summary.x;
+    drawConnectionLine(ctx, lineStartX, summaryCenterY, lineEndX, summaryCenterY, lineStyle);
+
+    if (isSelected) {
+      drawRoundRect(
+        ctx,
+        summary.x - 3,
+        summary.y - 3,
+        summary.width + 6,
+        summary.height + 6,
+        10,
+      );
+      ctx.fillStyle = 'rgba(139, 92, 246, 0.12)';
+      ctx.fill();
+      ctx.strokeStyle = '#8b5cf6';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    if (editingSummaryParentId === summary.parentId) {
+      drawRoundRect(ctx, summary.x, summary.y, summary.width, summary.height, 8);
+      ctx.fillStyle = '#faf5ff';
+      ctx.fill();
+      ctx.strokeStyle = summary.color;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    } else {
+      drawSummaryBox(ctx, summary);
     }
   }
 }
@@ -155,6 +238,12 @@ export function drawMindMap(
 ): void {
   const lineStyle = options.lineStyle ?? 'curve';
   drawEdges(ctx, layout, lineStyle);
-  drawSummaries(ctx, layout, lineStyle);
-  drawNodes(ctx, layout);
+  drawSummaries(
+    ctx,
+    layout,
+    lineStyle,
+    options.selectedSummaryParentId,
+    options.editingSummaryParentId,
+  );
+  drawNodes(ctx, layout, options.selectedIds, options.editingNodeId);
 }

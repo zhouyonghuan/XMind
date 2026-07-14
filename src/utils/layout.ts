@@ -1,20 +1,24 @@
-import type { MindMapNode, MindMapLayout, LayoutNode, LayoutEdge, SummaryLayout } from '../types';
+import type {
+  MindMapNode,
+  MindMapLayout,
+  LayoutNode,
+  LayoutEdge,
+  SummaryLayout,
+} from '../types';
 import { BRANCH_COLORS } from '../types';
 
 const ROOT_WIDTH = 120;
 const ROOT_HEIGHT = 44;
-const BRANCH_WIDTH = 80;
+const BRANCH_WIDTH = 88;
 const BRANCH_HEIGHT = 28;
-const SUB_WIDTH = 64;
-const SUB_HEIGHT = 24;
+const SUB_WIDTH = 72;
+const SUB_HEIGHT = 26;
 const SUMMARY_WIDTH = 56;
 const SUMMARY_HEIGHT = 32;
 
-const H_GAP_ROOT_BRANCH = 80;
-const H_GAP_BRANCH_SUB = 70;
-const H_GAP_SUB_SUMMARY = 50;
-const V_GAP_SUB = 12;
-const V_GAP_BRANCH = 40;
+const H_GAP = 72;
+const V_GAP = 16;
+const SUMMARY_GAP = 48;
 
 function measureNode(type: MindMapNode['type']): { width: number; height: number } {
   switch (type) {
@@ -31,21 +35,34 @@ function measureNode(type: MindMapNode['type']): { width: number; height: number
   }
 }
 
-interface SubtreeResult {
+interface SubtreeLayout {
   nodes: LayoutNode[];
   edges: LayoutEdge[];
   summaries: SummaryLayout[];
+  /** 子树占用的垂直高度 */
   height: number;
-  rootY: number;
+  /** 本节点中心 Y（相对入参坐标系） */
+  centerY: number;
+}
+
+function estimateSubtreeHeight(node: MindMapNode): number {
+  const size = measureNode(node.type);
+  if (!node.children?.length) return size.height;
+
+  const childrenHeight = node.children.reduce((sum, child, i) => {
+    return sum + estimateSubtreeHeight(child) + (i > 0 ? V_GAP : 0);
+  }, 0);
+
+  return Math.max(size.height, childrenHeight);
 }
 
 function layoutSubtree(
   node: MindMapNode,
   x: number,
-  y: number,
+  centerY: number,
   color: string,
   isRoot = false,
-): { result: SubtreeResult; centerY: number } {
+): SubtreeLayout {
   const size = measureNode(node.type);
   const layoutNode: LayoutNode = {
     id: node.id,
@@ -53,7 +70,7 @@ function layoutSubtree(
     type: node.type,
     color,
     x,
-    y: y - size.height / 2,
+    y: centerY - size.height / 2,
     width: size.width,
     height: size.height,
   };
@@ -63,203 +80,109 @@ function layoutSubtree(
   const summaries: SummaryLayout[] = [];
 
   if (!node.children?.length) {
-    return {
-      result: { nodes, edges, summaries, height: size.height, rootY: y },
-      centerY: y,
-    };
+    return { nodes, edges, summaries, height: size.height, centerY };
   }
 
+  const childX = x + size.width + H_GAP;
   const children = node.children;
-  const childX = x + size.width + (isRoot ? H_GAP_ROOT_BRANCH : H_GAP_BRANCH_SUB);
+  const totalChildrenHeight = children.reduce((sum, child, i) => {
+    return sum + estimateSubtreeHeight(child) + (i > 0 ? V_GAP : 0);
+  }, 0);
 
-  // 先计算每个子树的高度
-  const childLayouts: SubtreeResult[] = [];
-  let totalHeight = 0;
-
-  children.forEach((child, i) => {
-    const childColor = isRoot ? BRANCH_COLORS[i % BRANCH_COLORS.length] : color;
-    const childSize = measureNode(child.type);
-    const estimatedHeight = child.children?.length
-      ? child.children.length * (SUB_HEIGHT + V_GAP_SUB) + BRANCH_HEIGHT
-      : childSize.height;
-    totalHeight += estimatedHeight + (i > 0 ? V_GAP_BRANCH : 0);
-    childLayouts.push({
-      nodes: [],
-      edges: [],
-      summaries: [],
-      height: estimatedHeight,
-      rootY: 0,
-    });
-    void childColor;
-  });
-
-  // 实际布局子节点
-  let currentY = y - totalHeight / 2;
-  const actualLayouts: SubtreeResult[] = [];
+  let currentTop = centerY - totalChildrenHeight / 2;
 
   children.forEach((child, i) => {
     const childColor = isRoot ? BRANCH_COLORS[i % BRANCH_COLORS.length]! : color;
-    const childSize = measureNode(child.type);
+    const childEstimate = estimateSubtreeHeight(child);
+    const childCenterY = currentTop + childEstimate / 2;
+    const childLayout = layoutSubtree(child, childX, childCenterY, childColor, false);
 
-    if (child.type === 'branch' && child.children?.length) {
-      const branchY = currentY + childSize.height / 2;
-      const branchNode: LayoutNode = {
-        id: child.id,
-        text: child.text,
-        type: 'branch',
-        color: childColor,
-        x: childX,
-        y: branchY - childSize.height / 2,
-        width: childSize.width,
-        height: childSize.height,
-      };
+    edges.push({
+      id: `${node.id}-${child.id}`,
+      fromId: node.id,
+      toId: child.id,
+      color: childColor,
+    });
 
-      edges.push({
-        id: `${node.id}-${child.id}`,
-        fromId: node.id,
-        toId: child.id,
-        color: childColor,
+    nodes.push(...childLayout.nodes);
+    edges.push(...childLayout.edges);
+    summaries.push(...childLayout.summaries);
+
+    currentTop += childEstimate + V_GAP;
+  });
+
+  // 概要：对本节点的直接子节点做分组标记
+  if (node.summaryGroup && node.summaryGroup.childIds.length > 0) {
+    const groupedIds = new Set(node.summaryGroup.childIds);
+    const groupedNodes = nodes.filter(
+      (n) => groupedIds.has(n.id) && n.id !== node.id,
+    );
+
+    if (groupedNodes.length > 0) {
+      const bracketTop = Math.min(...groupedNodes.map((n) => n.y));
+      const bracketBottom = Math.max(...groupedNodes.map((n) => n.y + n.height));
+      const maxChildRight = Math.max(...groupedNodes.map((n) => n.x + n.width));
+
+      summaries.push({
+        id: `${node.id}-summary`,
+        text: node.summaryGroup.summaryText,
+        color,
+        parentId: node.id,
+        childIds: [...node.summaryGroup.childIds],
+        x: maxChildRight + SUMMARY_GAP,
+        y: (bracketTop + bracketBottom) / 2 - SUMMARY_HEIGHT / 2,
+        width: SUMMARY_WIDTH,
+        height: SUMMARY_HEIGHT,
+        bracketX: maxChildRight + 12,
+        bracketTop,
+        bracketBottom,
       });
-
-      const subNodes: LayoutNode[] = [branchNode];
-      const subEdges: LayoutEdge[] = [];
-      const subX = childX + childSize.width + H_GAP_BRANCH_SUB;
-
-      const subs = child.children;
-      const summaryInfo = child.summaryGroup;
-      const groupedIds = new Set(summaryInfo?.childIds ?? []);
-      const regularSubs = subs.filter((s) => !groupedIds.has(s.id) || !summaryInfo);
-      const groupedSubs = summaryInfo
-        ? subs.filter((s) => groupedIds.has(s.id))
-        : [];
-
-      const allSubs = [...regularSubs, ...groupedSubs];
-      const subTotalHeight =
-        allSubs.length * SUB_HEIGHT + (allSubs.length - 1) * V_GAP_SUB;
-      let subY = branchY - subTotalHeight / 2;
-
-      allSubs.forEach((sub) => {
-        const subNode: LayoutNode = {
-          id: sub.id,
-          text: sub.text,
-          type: 'sub',
-          color: childColor,
-          x: subX,
-          y: subY,
-          width: SUB_WIDTH,
-          height: SUB_HEIGHT,
-        };
-        subNodes.push(subNode);
-        subEdges.push({
-          id: `${child.id}-${sub.id}`,
-          fromId: child.id,
-          toId: sub.id,
-          color: childColor,
-        });
-        subY += SUB_HEIGHT + V_GAP_SUB;
-      });
-
-      // 概要分组
-      const branchSummaries: SummaryLayout[] = [];
-      if (summaryInfo && groupedSubs.length > 0) {
-        const firstGrouped = subNodes.find((n) => groupedIds.has(n.id))!;
-        const lastGrouped = [...subNodes].reverse().find((n) => groupedIds.has(n.id))!;
-        const bracketTop = firstGrouped.y;
-        const groupBottom = lastGrouped.y + lastGrouped.height;
-        const summaryX = subX + SUB_WIDTH + H_GAP_SUB_SUMMARY;
-
-        branchSummaries.push({
-          id: `${child.id}-summary`,
-          text: summaryInfo.summaryText,
-          color: childColor,
-          childIds: summaryInfo.childIds,
-          x: summaryX,
-          y: (bracketTop + groupBottom) / 2 - SUMMARY_HEIGHT / 2,
-          width: SUMMARY_WIDTH,
-          height: SUMMARY_HEIGHT,
-          bracketX: subX + SUB_WIDTH + 12,
-          bracketTop,
-          bracketBottom: groupBottom,
-        });
-      }
-
-      const subtreeHeight = Math.max(
-        childSize.height,
-        subTotalHeight,
-        calcBottom(subNodes, branchSummaries) - topY(subNodes),
-      );
-
-      actualLayouts.push({
-        nodes: subNodes,
-        edges: subEdges,
-        summaries: branchSummaries,
-        height: subtreeHeight,
-        rootY: branchY,
-      });
-
-      currentY += subtreeHeight + V_GAP_BRANCH;
-    } else {
-      const childY = currentY + childSize.height / 2;
-      const childResult = layoutSubtree(child, childX, childY, childColor);
-      edges.push({
-        id: `${node.id}-${child.id}`,
-        fromId: node.id,
-        toId: child.id,
-        color: childColor,
-      });
-      actualLayouts.push(childResult.result);
-      currentY += childResult.result.height + V_GAP_BRANCH;
     }
-  });
+  }
 
-  actualLayouts.forEach((layout) => {
-    nodes.push(...layout.nodes.filter((n) => n.id !== node.id));
-    edges.push(...layout.edges);
-    summaries.push(...layout.summaries);
-  });
-
-  const allHeight = actualLayouts.reduce(
-    (sum, l, i) => sum + l.height + (i > 0 ? V_GAP_BRANCH : 0),
-    0,
+  const contentBottom = Math.max(
+    layoutNode.y + layoutNode.height,
+    ...nodes.map((n) => n.y + n.height),
+    ...summaries.map((s) => s.bracketBottom),
+  );
+  const contentTop = Math.min(
+    layoutNode.y,
+    ...nodes.map((n) => n.y),
+    ...summaries.map((s) => s.bracketTop),
   );
 
   return {
-    result: { nodes, edges, summaries, height: Math.max(size.height, allHeight), rootY: y },
-    centerY: y,
+    nodes,
+    edges,
+    summaries,
+    height: Math.max(size.height, contentBottom - contentTop),
+    centerY,
   };
-}
-
-function topY(nodes: LayoutNode[]): number {
-  return Math.min(...nodes.map((n) => n.y));
-}
-
-function calcBottom(nodes: LayoutNode[], summaries: SummaryLayout[]): number {
-  const nodeBottom = nodes.length ? Math.max(...nodes.map((n) => n.y + n.height)) : 0;
-  const summaryBottom = summaries.length
-    ? Math.max(...summaries.map((s) => s.bracketBottom))
-    : 0;
-  return Math.max(nodeBottom, summaryBottom);
 }
 
 export function computeLayout(tree: MindMapNode, padding = 60): MindMapLayout {
   const startX = padding;
   const startY = 300;
 
-  const { result } = layoutSubtree(tree, startX, startY, '#8B5CF6', true);
+  const result = layoutSubtree(tree, startX, startY, '#8B5CF6', true);
 
   const allNodes = result.nodes;
+  if (allNodes.length === 0) {
+    return { nodes: [], edges: [], summaries: [], width: 0, height: 0 };
+  }
+
   const minX = Math.min(...allNodes.map((n) => n.x)) - padding;
   const minY = Math.min(...allNodes.map((n) => n.y)) - padding;
-  const maxX = Math.max(
-    ...allNodes.map((n) => n.x + n.width),
-    ...result.summaries.map((s) => s.x + s.width),
-  ) + padding;
-  const maxY = Math.max(
-    ...allNodes.map((n) => n.y + n.height),
-    ...result.summaries.map((s) => s.bracketBottom),
-  ) + padding;
+  const summaryMaxX = result.summaries.length
+    ? Math.max(...result.summaries.map((s) => s.x + s.width))
+    : -Infinity;
+  const summaryMaxY = result.summaries.length
+    ? Math.max(...result.summaries.map((s) => s.bracketBottom))
+    : -Infinity;
 
-  // 归一化坐标
+  const maxX = Math.max(...allNodes.map((n) => n.x + n.width), summaryMaxX) + padding;
+  const maxY = Math.max(...allNodes.map((n) => n.y + n.height), summaryMaxY) + padding;
+
   const normalizedNodes = allNodes.map((n) => ({
     ...n,
     x: n.x - minX,

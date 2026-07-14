@@ -36,6 +36,8 @@ export interface SummaryLayout {
   id: string;
   text: string;
   color: string;
+  /** 概要所属的父节点 id */
+  parentId: string;
   /** 被分组的子节点 id */
   childIds: string[];
   x: number;
